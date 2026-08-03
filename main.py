@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, status, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 import database
 import models
 
@@ -30,20 +31,26 @@ def get_books(db : Session = Depends(database.get_db)):
 
 @app.post("/books", status_code= status.HTTP_201_CREATED, tags= ["Books"])
 def add_book(book : BookCreate, db : Session = Depends(database.get_db)):
-    global current_id
-    new_book = models.BookModel(
-        code = book.code,
-        title = book.title,
-        price = book.price,
-        pages = book.pages
-    )
+    try:
+        new_book = models.BookModel(
+            code = book.code,
+            title = book.title,
+            price = book.price,
+            pages = book.pages
+        )
 
-    db.add(new_book)
-    db.commit()
-    db.refresh(new_book)
+        db.add(new_book)
+        db.commit()
+        db.refresh(new_book)
 
-    return {
-        "status_code": status.HTTP_201_CREATED,
-        "message": "Thêm thành công!",
-        "data": new_book
-    }
+        return {
+            "status_code": status.HTTP_201_CREATED,
+            "message": "Thêm thành công!",
+            "data": new_book
+        }
+    except SQLAlchemyError as s:
+        db.rollback()       
+        raise HTTPException(
+            status_code= status.HTTP_400_BAD_REQUEST,
+            detail= f"{s}"
+        )
